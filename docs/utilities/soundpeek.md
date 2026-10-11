@@ -5,20 +5,21 @@
 
 ## What it shows
 - The current **default output** and **default input** device, and every device that can do each direction (default first).
-- Per device: connection type (built-in, USB, Bluetooth, HDMI, …), sample rate, channel count, volume and mute state.
-- On the **default output** device only: a **volume slider** (where the device reports a writable volume) and a **Mute** button (where mute is writable). Other devices show their volume and mute state read-only.
+- Per device: connection type (built-in, USB, Bluetooth, HDMI, …), sample rate, channel count and, read-only, volume.
+- On the **default output** device only: a **volume slider** (where the device reports a writable volume) and a **Mute** button (where mute is writable). Other devices show their volume read-only. There is no separate mute status row: the button says Mute or Unmute.
 - Anything a device does not expose reads **Not reported** / **Not exposed by this device**. Nothing is estimated.
 - Duplicate device names are told apart (`USB Audio (1)`, `Headset (Bluetooth)`).
 - Copy audio report: names, connection, formats, defaults. No device IDs, UIDs or serial numbers.
 
 ## What it can change (only when you press a button)
-- **Set as default input/output** for a device that has that direction. **Undo** appears right after a switch and restores
-  the previous device if it is still connected. SoundPeek never switches devices on its own, including when a new one appears.
+- **Set as default input/output** for a device that has that direction. SoundPeek never switches devices on its own,
+  including when a new one appears. There is no Undo and no "switched" message: the **Default** badge moves, which is the
+  result. To go back, set the other device as default.
 - **Mute / Unmute** only on the default output device, and only where Core Audio reports the mute property as writable. Make a device the default first to mute it.
 - **Volume slider** (0–100%) only on the default output device, and only where Core Audio reports the volume property as writable (the device's main volume, or both
   channel 1 and 2 on devices that only have per-channel volume). Changes are sent shortly after you stop moving, the last
-  value wins, and the slider shows your value until the device confirms it. Moving the slider does not change mute and keeps
-  the default-device Undo.
+  value wins, and the slider shows your value until the device confirms it. Moving the slider does not change mute.
+- A message appears **only when something fails** (for example the device refuses the change); successful changes show none.
 
 ## Data sources and APIs
 Core Audio (Audio Hardware) property API via `CoreAudioDeviceProvider`: `kAudioHardwarePropertyDevices`,
@@ -44,5 +45,5 @@ None. No audio stream is ever opened, so macOS never asks for Microphone access.
 
 ## Testing
 `swift test --filter SoundPeekKitTests` (fake provider: mapping, unavailable properties, duplicate names, removal, errors,
-undo, volume clamping and refusal for read-only or removed devices). Manual: built-in devices, USB headset, Bluetooth, HDMI/monitor audio, unplug/replug while open, sleep/wake, a device
+volume clamping and refusal for read-only or removed devices). Manual: built-in devices, USB headset, Bluetooth, HDMI/monitor audio, unplug/replug while open, sleep/wake, a device
 without volume/mute.

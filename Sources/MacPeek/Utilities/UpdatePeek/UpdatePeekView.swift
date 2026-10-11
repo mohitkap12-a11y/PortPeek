@@ -270,6 +270,15 @@ private struct PackageRow: View {
                     CopyButton(text: command, label: "Copy command to upgrade \(package.name)")
                 }
             }
+            if let command = store.sudoCommands[package.id] {
+                HStack(spacing: 6) {
+                    Text(command).font(.system(size: 11, design: .monospaced)).textSelection(.enabled).lineLimit(2)
+                    Spacer(minLength: 4)
+                    CopyButton(text: command, label: "Copy the sudo command to update \(package.name)")
+                }
+                Text("It installs the package's scripts with administrator rights, so use it only for packages you trust. Fixing npm's folder permissions, or using a Node install your user owns, avoids needing it.")
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
             if confirming {
                 KillConfirmationView(
                     title: "Run npm install -g \(package.name)@latest? That is the latest version, which may be a new major version.",

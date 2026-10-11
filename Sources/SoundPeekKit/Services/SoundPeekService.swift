@@ -27,23 +27,16 @@ public struct SoundPeekService: Sendable {
 
     public func snapshot() async throws -> AudioSnapshot { try await provider.snapshot() }
 
-    /// Makes `id` the default for `direction`. Returns the new snapshot and what changed (nil if it already was the default).
-    public func setDefault(_ id: UInt32, direction: AudioDirection) async throws -> (AudioSnapshot, DefaultDeviceChange?) {
+    /// Makes `id` the default for `direction` and returns the new snapshot (unchanged when it already was the default).
+    public func setDefault(_ id: UInt32, direction: AudioDirection) async throws -> AudioSnapshot {
         let before = try await provider.snapshot()
         guard let device = before.device(id) else { throw SoundPeekError.deviceUnavailable }
         guard device.supports(direction) else {
             throw SoundPeekError.notSupported("\(device.name) does not report an \(direction.label.lowercased()) stream.")
         }
-        if before.defaultID(direction) == id { return (before, nil) }
+        if before.defaultID(direction) == id { return before }
         try await provider.setDefaultDevice(id, direction: direction)
-        let after = try await provider.snapshot()
-        return (after, DefaultDeviceChange(direction: direction, previousID: before.defaultID(direction), newID: id))
-    }
-
-    /// Puts the previous default back, if that device is still connected.
-    public func restore(_ change: DefaultDeviceChange) async throws -> AudioSnapshot {
-        guard let previous = change.previousID else { throw SoundPeekError.deviceUnavailable }
-        return try await setDefault(previous, direction: change.direction).0
+        return try await provider.snapshot()
     }
 
     public func setMuted(_ muted: Bool, deviceID: UInt32, direction: AudioDirection) async throws -> AudioSnapshot {

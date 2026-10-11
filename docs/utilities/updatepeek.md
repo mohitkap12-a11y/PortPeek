@@ -63,7 +63,12 @@ error text are never shown. "Latest" can be a new major version, and the UI says
     `_` or `-`), so a name can never become an option or a second argument. Installing runs the package's own install scripts,
     exactly as it would in Terminal, and downloads from the registry.
   - It **never elevates**. If npm cannot write to its global folder (common with the nodejs.org installer, which installs
-    under `/usr/local`), the install fails with a fixed explanation and you can run the copied command yourself.
+    under `/usr/local`), the install fails with a fixed explanation and the row shows the **same command with `sudo` in
+    front** (`sudo npm install -g <name>@latest`) with a copy button, to paste into Terminal. The password is typed in
+    Terminal; MacPeek never sees it and never runs `sudo` itself. The row says the package's install scripts then run as
+    administrator, so it should be used only for packages you trust, and that fixing npm's folder permissions (or using a
+    Node install your user owns, such as Homebrew's) avoids needing it. The command is offered only for a strictly validated
+    name, so it cannot contain shell metacharacters (names starting with `~` are rejected too, which a shell would expand).
     npm's own error text is never shown.
   - An update that has started is **not cancelled** when you leave the screen, so an install is never interrupted halfway;
     the result shows when you return. After a successful update npm is asked again (if the screen is open), so the list

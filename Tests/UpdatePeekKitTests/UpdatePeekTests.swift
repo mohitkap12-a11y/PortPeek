@@ -220,10 +220,20 @@ final class UpdateStatusServiceTests: XCTestCase {
     }
 
     func testAnInstallerFailureIsReportedWithItsSafeMessage() async {
-        let installer = RecordingInstaller(error: UpdatePeekError.operationFailed(NpmGlobalInstaller.permissionMessage))
+        let installer = RecordingInstaller(error: UpdatePeekError.operationFailed("npm could not update typescript."))
         let listed = OutdatedPackage(name: "typescript", kind: .npm, installedVersions: ["5.4.5"], currentVersion: "5.6.2")
         let outcome = await make(runner: ScriptedRunner(ok("")), installer: installer).updateNpmPackage(listed, among: [listed])
-        XCTAssertEqual(outcome, .failed(message: NpmGlobalInstaller.permissionMessage))
+        XCTAssertEqual(outcome, .failed(message: "npm could not update typescript."))
+    }
+
+    func testAPermissionRefusalGivesACopyableSudoCommandAndRunsNothingElevated() async {
+        let installer = RecordingInstaller(error: UpdatePeekError.permissionDenied)
+        let scoped = OutdatedPackage(name: "@angular/cli", kind: .npm, installedVersions: ["17.0.0"], currentVersion: "18.2.1")
+        let runner = ScriptedRunner(ok(""))
+        let outcome = await make(runner: runner, installer: installer).updateNpmPackage(scoped, among: [scoped])
+        XCTAssertEqual(outcome, .needsAdministrator(command: "sudo npm install -g @angular/cli@latest"))
+        XCTAssertEqual(installer.names, ["@angular/cli"], "tried once as the user")
+        XCTAssertTrue(runner.calls.isEmpty, "the sudo command is only returned, never run")
     }
 
     func testNpmInitialStateDependsOnlyOnWhetherNpmWasFound() {
@@ -424,7 +434,7 @@ final class NpmUpdateActionTests: XCTestCase {
 
     func testMaliciousOrMalformedNamesGetNoAction() {
         for name in ["-g", "--prefix=/x", "a b", "a;rm -rf ~", "$(whoami)", "a`b`", "x\ny", "", "名前", "@", "@scope", "@/x",
-                     "@scope/", "@a/b/c", ".hidden", "_private", "Upper", "a@latest", String(repeating: "a", count: 215)] {
+                     "@scope/", "@a/b/c", ".hidden", "_private", "~root", "Upper", "a@latest", String(repeating: "a", count: 215)] {
             let p = package(name)
             XCTAssertNil(UpdateActions.action(for: p, among: [p]), name)
         }
@@ -604,7 +614,7 @@ final class NpmInstallerTests: XCTestCase {
                 try await NpmGlobalInstaller(runner: runner, locator: FixedNpmLocator(path: "/usr/local/bin/npm")).install("typescript")
                 XCTFail("expected error")
             } catch {
-                XCTAssertEqual(error as? UpdatePeekError, .operationFailed(NpmGlobalInstaller.permissionMessage))
+                XCTAssertEqual(error as? UpdatePeekError, .permissionDenied)
                 XCTAssertFalse(error.localizedDescription.contains("secret"))
             }
         }
@@ -618,6 +628,13 @@ final class NpmInstallerTests: XCTestCase {
         } catch {
             XCTAssertEqual(error as? UpdatePeekError, .operationFailed("npm could not update typescript."))
             XCTAssertFalse(error.localizedDescription.contains("private"))
+        }
+    }
+
+    func testTheSudoCommandIsOfferedOnlyForValidNames() {
+        XCTAssertEqual(UpdateActions.elevatedNpmCommand(forName: "typescript"), "sudo npm install -g typescript@latest")
+        for name in ["-g", "~root", "a b", "a;rm -rf ~", "$(whoami)", "", "Upper", "a@latest", "@scope", ".hidden"] {
+            XCTAssertNil(UpdateActions.elevatedNpmCommand(forName: name), name)
         }
     }
 

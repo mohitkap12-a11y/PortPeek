@@ -22,7 +22,7 @@ The new Kits follow the same pattern, so Linux CI compiles them: Core Audio, Sec
 |---|---|
 | Device list, defaults, transport, channels, rate, volume, mute | **Shipped.** Core Audio property reads need no permission; no stream is opened. |
 | Live device changes | **Shipped**, listeners only while visible. |
-| Set default input/output | **Shipped**, user-initiated, with Undo. Settable system property; no permission. |
+| Set default input/output | **Shipped**, user-initiated. Settable system property; no permission. No Undo (removed as unnecessary). |
 | Mute | **Shipped** where the mute property is settable. |
 | Set volume | **Shipped** as a slider where the volume property is settable (main volume, or channels 1 and 2). No permission needed. |
 | Per-app volume/mute/routing | **Not shipped.** No public Core Audio API controls another app's audio without a virtual driver or audio-tap capture authorization. |
@@ -50,7 +50,7 @@ The new Kits follow the same pattern, so Linux CI compiles them: Core Audio, Sec
 dependencies. Everything runs as the current user.
 
 ## 4. Implemented / partial / deferred
-- **Implemented:** SoundPeek (inventory, live changes, default switch + Undo, volume slider, mute, report); UpdatePeek (OS
+- **Implemented:** SoundPeek (inventory, live changes, default switch, volume slider and mute on the default output, report); UpdatePeek (OS
   version, Software Update link, Homebrew and global npm outdated, copy commands).
 - **Partial:** UpdatePeek covers macOS version, Homebrew and global npm only.
 - **Deferred:** per-app audio, audio-using-apps; macOS update check; in-app upgrades; global search integration.
@@ -68,7 +68,7 @@ MacPeekCore. Framework used (system, no entitlement): CoreAudio.
 
 ### Manual release checklist
 1. `swift build && swift test` on macOS 13 and the newest macOS; Linux CI green.
-2. SoundPeek: built-in, USB, Bluetooth, HDMI; unplug/replug while open; sleep/wake; set default then Undo; drag the volume slider (and confirm the system volume follows, the slider holds your value while
+2. SoundPeek: built-in, USB, Bluetooth, HDMI; unplug/replug while open; sleep/wake; set default; drag the volume slider (and confirm the system volume follows, the slider holds your value while
    dragging, and a device without a writable volume shows no slider); mute; confirm no
    microphone indicator ever appears and no permission prompt is shown.
 3. UpdatePeek: Homebrew and npm absent / present / outdated packages / broken; npm offline (expect a retryable failure, not an

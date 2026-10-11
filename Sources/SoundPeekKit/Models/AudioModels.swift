@@ -225,18 +225,6 @@ public struct AudioSnapshot: Equatable, Sendable {
     }
 }
 
-/// A default-device change the user made, kept so it can be undone.
-public struct DefaultDeviceChange: Equatable, Sendable {
-    public let direction: AudioDirection
-    public let previousID: UInt32?
-    public let newID: UInt32
-    public init(direction: AudioDirection, previousID: UInt32?, newID: UInt32) {
-        self.direction = direction
-        self.previousID = previousID
-        self.newID = newID
-    }
-}
-
 public enum SoundPeekError: Error, LocalizedError, Equatable {
     case deviceUnavailable
     case notSupported(String)

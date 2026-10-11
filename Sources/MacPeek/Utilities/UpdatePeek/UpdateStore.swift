@@ -16,6 +16,9 @@ final class UpdateStore: ObservableObject {
     /// The npm package being updated right now (`OutdatedPackage.id`), if any.
     @Published private(set) var updatingNpm: String?
     @Published private(set) var npmNotice: Banner?
+    /// Copyable `sudo` commands for packages npm refused to update for lack of permission, by `OutdatedPackage.id`.
+    /// MacPeek never runs them. Cleared when npm is checked again.
+    @Published private(set) var sudoCommands: [String: String] = [:]
 
     private let service: UpdateStatusService
     private var macOSTask: Task<Void, Never>?
@@ -93,6 +96,7 @@ final class UpdateStore: ObservableObject {
         if case .checking = npm { return }
         npmTask?.cancel()
         if !keepingNotice { npmNotice = nil }
+        sudoCommands = [:]
         npm = .checking
         npmTask = Task { [weak self] in
             guard let self else { return }
@@ -126,6 +130,9 @@ final class UpdateStore: ObservableObject {
             case .failed(let message):
                 Log.updatePeek.error("npm update failed")
                 self.npmNotice = Banner(kind: .error, text: message)
+            case .needsAdministrator(let command):
+                self.sudoCommands[package.id] = command
+                self.npmNotice = Banner(kind: .error, text: NpmGlobalInstaller.permissionMessage)
             }
         }
     }

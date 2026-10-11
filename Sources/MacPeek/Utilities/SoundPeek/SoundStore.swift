@@ -3,27 +3,19 @@ import Foundation
 import SoundPeekKit
 
 /// Observable state for SoundPeek. Core Audio is read off the main actor. Change listeners exist only while the screen is
-/// visible, and a default-device change is only ever made by a button press (and can be undone).
+/// visible, and a default-device, volume or mute change is only ever made by a button press or slider move.
 @MainActor
 final class SoundStore: ObservableObject {
     @Published private(set) var snapshot: AudioSnapshot?
     @Published private(set) var isLoading = false
     @Published private(set) var error: String?
     @Published private(set) var banner: Banner?
-    /// The last default-device change this session, for the Undo button.
-    @Published private(set) var lastChange: DefaultDeviceChange?
     /// Volumes the user has dragged to but that Core Audio has not confirmed yet, so a slider doesn't jump back while a
     /// write or a refresh is in flight. Keyed by `volumeKey`.
     @Published private(set) var pendingVolumes: [String: Double] = [:]
 
     private let service: SoundPeekService
     private let observer: AudioChangeObserving
-    /// What a finished action does to the saved Undo.
-    private enum UndoUpdate: Sendable {
-        case keep, clear
-        case set(DefaultDeviceChange)
-    }
-
     private var refreshTask: Task<Void, Never>?
     private var debounceTask: Task<Void, Never>?
     private var actionTask: Task<Void, Never>?
@@ -41,9 +33,6 @@ final class SoundStore: ObservableObject {
             guard !Task.isCancelled else { return }
             snapshot = result
             error = nil
-            // Undo only makes sense while the default is still the one this app set; if it was changed elsewhere,
-            // restoring the old device would override that newer choice.
-            if let change = lastChange, result.defaultID(change.direction) != change.newID { lastChange = nil }
         } catch {
             if Task.isCancelled { return }
             self.error = error.localizedDescription
@@ -90,26 +79,12 @@ final class SoundStore: ObservableObject {
     }
 
     func setDefault(_ id: UInt32, direction: AudioDirection) {
-        run { service in
-            let (snapshot, change) = try await service.setDefault(id, direction: direction)
-            return (snapshot, change.map(UndoUpdate.set) ?? .keep, change.map { _ in "\(direction.label) switched." })
-        }
-    }
-
-    func undo() {
-        guard let change = lastChange else { return }
-        run { service in
-            let snapshot = try await service.restore(change)
-            return (snapshot, .clear, "Restored the previous \(change.direction.label.lowercased()) device.")
-        }
+        run { service in try await service.setDefault(id, direction: direction) }
     }
 
     func toggleMute(_ device: AudioDevice, direction: AudioDirection) {
         let muted = !(device.controls(direction).isMuted ?? false)
-        run { service in
-            let snapshot = try await service.setMuted(muted, deviceID: device.id, direction: direction)
-            return (snapshot, .clear, muted ? "Muted." : "Unmuted.")
-        }
+        run { service in try await service.setMuted(muted, deviceID: device.id, direction: direction) }
     }
 
     static func volumeKey(_ device: AudioDevice, _ direction: AudioDirection) -> String {
@@ -122,7 +97,7 @@ final class SoundStore: ObservableObject {
     }
 
     /// Called as the slider moves. Writes are debounced so a drag sends a handful of changes, not hundreds, and the last
-    /// value always wins. Changing volume leaves the default-device Undo alone and shows no banner on success.
+    /// value always wins. Success shows no message; the slider and the Default badge already show the result.
     func setVolume(_ value: Double, device: AudioDevice, direction: AudioDirection) {
         let value = min(max(value, 0), 1)
         let key = Self.volumeKey(device, direction)
@@ -148,22 +123,17 @@ final class SoundStore: ObservableObject {
         }
     }
 
-    private func run(_ operation: @escaping @Sendable (SoundPeekService) async throws -> (AudioSnapshot, UndoUpdate, String?)) {
+    /// Runs one user-initiated change. Success shows no message (the screen already shows the result); a failure shows an
+    /// error banner and re-reads the devices.
+    private func run(_ operation: @escaping @Sendable (SoundPeekService) async throws -> AudioSnapshot) {
         actionTask?.cancel()
         let service = self.service
         actionTask = Task { [weak self] in
             do {
-                let (snapshot, undo, message) = try await operation(service)
+                let snapshot = try await operation(service)
                 guard let self, !Task.isCancelled else { return }
                 self.snapshot = snapshot
                 self.error = nil
-                // Undo is set by a default-device change, kept by a no-op, and cleared only once an undo or mute succeeded.
-                switch undo {
-                case .set(let change): self.lastChange = change
-                case .clear: self.lastChange = nil
-                case .keep: break
-                }
-                if let message { self.banner = Banner(kind: .success, text: message) }
             } catch {
                 guard let self, !Task.isCancelled else { return }
                 self.banner = Banner(kind: .error, text: error.localizedDescription)

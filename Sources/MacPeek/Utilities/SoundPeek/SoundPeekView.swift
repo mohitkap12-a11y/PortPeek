@@ -4,7 +4,7 @@ import SoundPeekKit
 import MacPeekCore
 
 /// SoundPeek's screen: the default output and input, then every device that can do each. Only controls the device
-/// actually exposes are shown; anything else reads "Not reported".
+/// actually exposes are shown; anything else reads "Not reported". Messages appear only when something fails.
 struct SoundPeekView: View {
     @EnvironmentObject private var store: SoundStore
 
@@ -13,9 +13,6 @@ struct SoundPeekView: View {
             if let banner = store.banner {
                 HStack(spacing: 8) {
                     BannerView(banner: banner)
-                    if store.lastChange != nil, banner.kind == .success {
-                        Button("Undo") { store.undo() }.controlSize(.small).accessibilityLabel("Restore the previous device")
-                    }
                     Button { store.dismissBanner() } label: { Image(systemName: "xmark") }
                         .buttonStyle(.borderless).accessibilityLabel("Dismiss message")
                 }
@@ -190,7 +187,6 @@ private struct DeviceCard: View {
         var rows: [(label: String, value: String)] = [("Format", device.formatLabel(direction) ?? "Not reported")]
         // With a slider the volume is shown there; otherwise it is a read-only value or "not exposed".
         if !(showsLevelControls && controls.canSetVolume) { rows.append(("Volume", controls.volumeLabel ?? "Not exposed by this device")) }
-        rows.append(("Muted", controls.isMuted.map { $0 ? "Yes" : "No" } ?? "Not exposed by this device"))
         return rows
     }
 }

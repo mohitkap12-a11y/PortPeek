@@ -140,19 +140,17 @@ final class AudioModelTests: XCTestCase {
 final class SoundPeekServiceTests: XCTestCase {
     private func service(_ provider: FakeAudioProvider) -> SoundPeekService { SoundPeekService(provider: provider) }
 
-    func testSettingDefaultReportsThePreviousDeviceForUndo() async throws {
+    func testSettingDefaultSwitchesTheDeviceAndReturnsTheNewSnapshot() async throws {
         let provider = FakeAudioProvider(devices: [speakers, airpods], defaultOutput: 1)
-        let (snapshot, change) = try await service(provider).setDefault(3, direction: .output)
+        let snapshot = try await service(provider).setDefault(3, direction: .output)
         XCTAssertEqual(snapshot.defaultOutputID, 3)
-        XCTAssertEqual(change, DefaultDeviceChange(direction: .output, previousID: 1, newID: 3))
-        let restored = try await service(provider).restore(try XCTUnwrap(change))
-        XCTAssertEqual(restored.defaultOutputID, 1)
+        XCTAssertEqual(provider.setDefaultCalls.count, 1)
     }
 
     func testSettingTheCurrentDefaultChangesNothing() async throws {
         let provider = FakeAudioProvider(devices: [speakers], defaultOutput: 1)
-        let (_, change) = try await service(provider).setDefault(1, direction: .output)
-        XCTAssertNil(change)
+        let snapshot = try await service(provider).setDefault(1, direction: .output)
+        XCTAssertEqual(snapshot.defaultOutputID, 1)
         XCTAssertTrue(provider.setDefaultCalls.isEmpty)
     }
 
@@ -177,18 +175,6 @@ final class SoundPeekServiceTests: XCTestCase {
             guard case SoundPeekError.notSupported = error else { return XCTFail("wrong error \(error)") }
         }
         XCTAssertTrue(provider.setDefaultCalls.isEmpty)
-    }
-
-    func testRestoreFailsWhenThePreviousDeviceIsGone() async {
-        let provider = FakeAudioProvider(devices: [speakers, airpods], defaultOutput: 1)
-        let change = DefaultDeviceChange(direction: .output, previousID: 1, newID: 3)
-        provider.remove(1)
-        do {
-            _ = try await service(provider).restore(change)
-            XCTFail("expected deviceUnavailable")
-        } catch {
-            XCTAssertEqual(error as? SoundPeekError, .deviceUnavailable)
-        }
     }
 
     func testMuteOnlyWhenTheDeviceAllowsIt() async throws {

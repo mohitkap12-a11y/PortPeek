@@ -127,18 +127,24 @@ public enum MacOSUpdateState: Equatable, Sendable {
 public enum PackageInstallOutcome: Equatable, Sendable {
     case installed
     case failed(message: String)
+    /// npm is not allowed to change its global packages as this user. `command` is a ready-to-copy command that needs
+    /// administrator rights; MacPeek never runs it.
+    case needsAdministrator(command: String)
 }
 
 public enum UpdatePeekError: Error, LocalizedError, Equatable {
     case sourceUnavailable(String)
     case malformedData
     case operationFailed(String)
+    /// The package manager refused the change for lack of permission.
+    case permissionDenied
 
     public var errorDescription: String? {
         switch self {
         case .sourceUnavailable(let detail): return detail
         case .malformedData: return "Homebrew's answer could not be understood."
         case .operationFailed(let detail): return detail
+        case .permissionDenied: return NpmGlobalInstaller.permissionMessage
         }
     }
 }

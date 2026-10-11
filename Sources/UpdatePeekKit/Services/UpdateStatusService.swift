@@ -133,7 +133,7 @@ public struct NpmOutdatedChecker: NpmChecking {
 /// run the copied command themselves. Installing runs the package's own install scripts, as it would in Terminal.
 public struct NpmGlobalInstaller: NpmInstalling {
     public static let permissionMessage =
-        "npm doesn't have permission to change its global packages on this Mac. Run the copied command in Terminal with the permissions your Node install needs."
+        "npm isn't allowed to change its global packages with your user account. MacPeek never uses administrator rights, so run the command shown below in Terminal; it asks for your password there."
 
     private let runner: CommandRunning
     private let locator: NpmLocating
@@ -162,7 +162,7 @@ public struct NpmGlobalInstaller: NpmInstalling {
             // Only used to pick a fixed message; npm's own text is never shown.
             let text = (output.stdout + output.stderr).lowercased()
             if text.contains("eacces") || text.contains("eperm") || text.contains("permission denied") {
-                throw UpdatePeekError.operationFailed(Self.permissionMessage)
+                throw UpdatePeekError.permissionDenied
             }
             throw UpdatePeekError.operationFailed("npm could not update \(name).")
         }
@@ -180,11 +180,12 @@ public enum UpdateActions {
     }
 
     /// npm names: lowercase letters, digits and `- . _ ~`, optionally scoped (`@scope/name`); a part never starts with
-    /// `.`, `_` or `-` (option injection). Old packages with capitals get no copy button; they are still listed.
+    /// `.`, `_`, `-` (option injection) or `~` (a shell would expand it to a home folder). Old packages with capitals
+    /// get no copy button; they are still listed.
     static func isValidNpmPackageName(_ name: String) -> Bool {
         guard !name.isEmpty, name.count <= 214 else { return false }
         func isValidPart(_ part: Substring) -> Bool {
-            guard let first = part.unicodeScalars.first, first != ".", first != "_", first != "-" else { return false }
+            guard let first = part.unicodeScalars.first, first != ".", first != "_", first != "-", first != "~" else { return false }
             return part.unicodeScalars.allSatisfy { scalar in
                 (scalar.value >= 97 && scalar.value <= 122) || (scalar.value >= 48 && scalar.value <= 57)
                     || "-._~".unicodeScalars.contains(scalar)
@@ -195,6 +196,12 @@ public enum UpdateActions {
             return parts.count == 2 && parts.allSatisfy { isValidPart($0) }
         }
         return isValidPart(Substring(name))
+    }
+
+    /// The command to copy when npm is not allowed to update a package as the current user: the same fixed form with
+    /// `sudo` in front, for a validated name only. MacPeek never runs it, so the password goes to Terminal, not to MacPeek.
+    public static func elevatedNpmCommand(forName name: String) -> String? {
+        isValidNpmPackageName(name) ? "sudo npm install -g \(name)@latest" : nil
     }
 
     /// Whether MacPeek itself can update this package (after the user confirms): only npm packages, only ones npm just
@@ -296,6 +303,10 @@ public struct UpdateStatusService: Sendable {
         do {
             try await npmInstaller.install(package.name)
             return .installed
+        } catch UpdatePeekError.permissionDenied {
+            // The name was validated above, so the command always exists; fall back to a plain failure if it ever does not.
+            if let command = UpdateActions.elevatedNpmCommand(forName: package.name) { return .needsAdministrator(command: command) }
+            return .failed(message: NpmGlobalInstaller.permissionMessage)
         } catch let error as UpdatePeekError {
             return .failed(message: error.localizedDescription)
         } catch {
