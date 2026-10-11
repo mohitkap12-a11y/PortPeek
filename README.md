@@ -39,7 +39,7 @@ is switched off does no work at all: no polling, no scanning, nothing in the lau
   verify the PID still owns the resource and is the same process (PID-reuse guard) → SIGTERM → verify
   exit and release → optional, explicit force kill (SIGKILL) after another re-check
 - Utilities refresh only while their screen is open
-- No account, no telemetry, no cloud, no third-party dependencies. The only network traffic is what you ask for (NetPeek pings, DNSPeek lookups)
+- No account, no telemetry, no cloud, no third-party dependencies. The only network traffic is a check you start yourself (NetPeek pings, DNSPeek lookups, UpdatePeek's macOS and npm checks)
 
 ## Install
 Download `MacPeek-x.y.z.dmg` from [Releases](../../releases/latest), drag **MacPeek** to **Applications**,
